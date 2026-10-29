@@ -12,6 +12,7 @@
 
 - [x] 3.1 Implement the 7-segment renderer: a segment mask table for digits 0–9, segment rectangles with `T`-row horizontal and `2T`-column vertical strokes, a two-square colon, and the largest `T` that fits, centred. Verify that `go build` succeeds and that a tmux pane (`tmux new -d -x 120 -y 40 'go run . 10 3'`, then `tmux capture-pane -p`) shows `10:00` in block digits filling the pane
 - [x] 3.2 Redraw on resize events. Verify that after `tmux resize-window -x 60 -y 20` a fresh `capture-pane` shows the digits re-fitted to the smaller pane
+- [x] 3.3 Replace the full-block renderer with real 7-segment shapes: separate pointed segments with gaps, upright, unlit segments blank, drawn at quarter-cell resolution with quadrant characters (lit when at least half covered), and a two-dot colon. Verify that `go build` succeeds and that `tmux capture-pane -p` at 120×40 and at 60×20 shows `10:00` and `09:5x` with separate pointed segments and gaps at the corners
 
 ## 4. Timer state and controls
 

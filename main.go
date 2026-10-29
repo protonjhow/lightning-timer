@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"time"
@@ -73,66 +74,88 @@ func parseArgs() (total, warning int) {
 	return total, warning
 }
 
-func fill(s tcell.Screen, x, y, w, h int, st tcell.Style) {
-	for row := y; row < y+h; row++ {
-		for col := x; col < x+w; col++ {
-			s.SetContent(col, row, '█', nil, st)
+// Quadrant block characters indexed by lit quarters: 1=top-left, 2=top-right, 4=bottom-left, 8=bottom-right.
+var quadrants = []rune(" ▘▝▀▖▌▞▛▗▚▐▜▄▙▟█")
+
+// plot draws a w×h cell box at (x, y), lighting each quarter cell that is at least half inside the shape.
+// Shape coordinates are in units where a cell is 1 wide and 2 tall, so the units are square on screen.
+func plot(s tcell.Screen, x, y, w, h int, st tcell.Style, inside func(x, y float64) bool) {
+	const n = 4 // samples per side of a quarter cell
+	for row := range h {
+		for col := range w {
+			bits := 0
+			for k := range 4 {
+				qx, qy := float64(col)+0.5*float64(k%2), float64(2*row)+float64(k/2)
+				hits := 0
+				for i := range n * n {
+					if inside(qx+(float64(i%n)+0.5)*0.5/n, qy+(float64(i/n)+0.5)/n) {
+						hits++
+					}
+				}
+				if 2*hits >= n*n {
+					bits |= 1 << k
+				}
+			}
+			if bits != 0 {
+				s.SetContent(x+col, y+row, quadrants[bits], nil, st)
+			}
 		}
 	}
 }
 
-func drawDigit(s tcell.Screen, d, x, y, w, h, t int, st tcell.Style) {
-	v := 2 * t
-	mid := y + (h-t)/2
-	m := digitSegments[d]
-	if m&segA != 0 {
-		fill(s, x, y, w, t, st)
+// segmentTest returns whether a point in a w×h digit lies on one of the lit segments.
+// Each segment is a bar of thickness th with pointed ends, separated from its neighbours by gap g.
+func segmentTest(mask int, w, h, th, g float64) func(x, y float64) bool {
+	l, r, t, m, b := th/2, w-th/2, th/2, h/2, h-th/2
+	hseg := func(x, y, yc float64) bool {
+		d := math.Abs(y - yc)
+		return d <= th/2 && x >= l+g+d && x <= r-g-d
 	}
-	if m&segG != 0 {
-		fill(s, x, mid, w, t, st)
+	vseg := func(x, y, xc, y0, y1 float64) bool {
+		d := math.Abs(x - xc)
+		return d <= th/2 && y >= y0+g+d && y <= y1-g-d
 	}
-	if m&segD != 0 {
-		fill(s, x, y+h-t, w, t, st)
-	}
-	if m&segF != 0 {
-		fill(s, x, y, v, mid+t-y, st)
-	}
-	if m&segB != 0 {
-		fill(s, x+w-v, y, v, mid+t-y, st)
-	}
-	if m&segE != 0 {
-		fill(s, x, mid, v, y+h-mid, st)
-	}
-	if m&segC != 0 {
-		fill(s, x+w-v, mid, v, y+h-mid, st)
+	return func(x, y float64) bool {
+		return mask&segA != 0 && hseg(x, y, t) ||
+			mask&segG != 0 && hseg(x, y, m) ||
+			mask&segD != 0 && hseg(x, y, b) ||
+			mask&segF != 0 && vseg(x, y, l, t, m) ||
+			mask&segB != 0 && vseg(x, y, r, t, m) ||
+			mask&segE != 0 && vseg(x, y, l, m, b) ||
+			mask&segC != 0 && vseg(x, y, r, m, b)
 	}
 }
 
 func draw(s tcell.Screen, secs int, st tcell.Style) {
 	sw, sh := s.Size()
-	// Layout is D gap D gap colon gap D gap D, with gap = w/4 and colon = w/4 wide.
-	w := (sw - 2) * 4 / 21
-	h := w * 7 / 8
+	// Layout is D gap D gap colon gap D gap D, with gap = w/4 and colon about w/5, so about 5.2w in total.
+	w := (sw - 2) * 5 / 26
+	h := w * 5 / 6
 	if h > sh-2 {
 		h = sh - 2
-		w = h * 8 / 7
+		w = h * 6 / 5
 	}
-	w, h = max(w, 5), max(h, 5)
-	t := max(1, h/7)
+	w, h = max(w, 6), max(h, 5)
+	fw, fh := float64(w), float64(2*h)
+	th := 0.22 * fw
+	g := max(0.04*fw, 0.5)
 	gap := max(1, w/4)
-	colon := 2 * t
+	colon := max(1, int(th+0.5))
 
 	total := 4*w + 4*gap + colon
 	x := (sw - total) / 2
 	y := (sh - h) / 2
 
+	dots := func(px, py float64) bool {
+		near := func(c float64) bool { return math.Abs(py-c) <= th/2 }
+		return near(fh*0.32) || near(fh*0.68)
+	}
 	digits := [4]int{secs / 600, secs / 60 % 10, secs % 60 / 10, secs % 10}
 	for i, d := range digits {
-		drawDigit(s, d, x, y, w, h, t, st)
+		plot(s, x, y, w, h, st, segmentTest(digitSegments[d], fw, fh, th, g))
 		x += w + gap
 		if i == 1 {
-			fill(s, x, y+h/3-t/2, colon, t, st)
-			fill(s, x, y+2*h/3-t/2, colon, t, st)
+			plot(s, x, y, colon, h, st, dots)
 			x += colon + gap
 		}
 	}

@@ -34,15 +34,24 @@ The project is empty apart from OpenSpec. Go 1.27 is installed. See proposal.md 
 
 **Flashing.** At zero the digits are drawn only when `time.Now().UnixMilli()/250` is even. This gives an on/off cycle of about twice a second, driven by the same ticker.
 
-**7-segment rendering from a segment table.** Each digit 0 to 9 maps to a 7-bit mask (segments a to g). A digit is drawn into a box of width `W` and height `H` by filling rectangles of full-block cells (`█`) for each lit segment:
-- Horizontal segments are `T` rows thick.
-- Vertical segments are `2T` columns thick, because terminal cells are about twice as tall as they are wide, so this keeps the strokes looking even.
-- The colon is two filled squares (`2T` × `T` cells).
+**7-segment rendering by sampling shapes at quarter-cell resolution.** The first version filled whole cells with `█`, which looked too blocky to pass for a 7-segment display.
+- Each digit 0 to 9 maps to a 7-bit mask (segments a to g).
+- Each segment is described geometrically as a bar of thickness `th` with pointed (45°) ends, shortened by a gap `g` at each end so neighbouring segments don't touch. Coordinates use units where a cell is 1 wide and 2 tall, so shapes are square on screen.
+- Every cell is split into 2×2 quarters, and each quarter is drawn with one of the 16 quadrant block characters (`▘▝▀▖▌▞▛▗▚▐▜▄▙▟█`). A quarter is lit when at least half of it lies inside a lit segment, using 4×4 samples. This removes most single-quarter specks along the slanted edges.
+- Ghostty and iTerm2 draw these characters natively, so edges join cleanly between cells.
+- The colon is two square dots of side `th`, at about 1/3 and 2/3 of the digit height.
+- Rejected:
+  - Braille (2×4 dots per cell), because the dots have gaps and look stippled rather than solid.
+  - Sextant characters (2×3 per cell), because font support is patchier.
+  - Slanted digits, because they came out jagged at terminal resolution and the user chose upright.
+  - Faint "ghost" unlit segments, which the user declined.
 
-**Scaling.** The layout is `D D : D D` with a fixed gap between elements. `T` is computed as the largest value for which the whole layout (digit width about `6T` columns, height about `5T` rows plus gaps and colon) fits inside the screen with a small margin. `T` has a floor of 1, and the layout is centred. On a very small terminal the digits are simply drawn at the minimum size and may be clipped. That's acceptable for a full-screen tool.
+**Scaling.** The layout is `D D : D D`, with the gap between elements a quarter of the digit width. The digit width `w` (cells) is the largest that fits about `5.2w` across the screen with a small margin. Height is `5w/6` rows, which gives about a 1:1.7 width:height digit on screen. If that height doesn't fit, it's taken from the screen height instead. Stroke thickness is `0.22w` and the gap is `max(0.04w, 0.5)`. There's a minimum size of 6×5 cells, and the layout is centred. On a very small terminal the digits are drawn at the minimum size and may be clipped. That's acceptable for a full-screen tool.
 
 ## Risks / Trade-offs
 
-- [Small terminal windows clip the display] → The speaker runs it full-screen. With `T` = 1 the layout needs only about 30×7 cells.
+- [Small terminal windows clip the display] → The speaker runs it full-screen. At the minimum size the layout needs only about 32×7 cells.
+- [A terminal font without quadrant characters would show gaps or boxes] → Ghostty and iTerm2, the terminals in use, draw block elements themselves rather than using the font.
+- [Pointed segment tips can leave a single quarter-cell at small sizes] → This is the true shape at that resolution. It shrinks relative to the digit at full-screen sizes.
 - [Terminals without true yellow/red] → Use the basic ANSI colours (`tcell.ColorWhite`, `ColorYellow`, `ColorRed`), which every terminal supports.
 - [Laptop sleeps during a talk] → Out of scope. The deadline approach means the display is correct on wake.

@@ -47,6 +47,17 @@ The program SHALL fill the terminal with the remaining time as `MM:SS` in a 7-se
 - **WHEN** the terminal window is resized
 - **THEN** the digits are redrawn centred at the largest size that fits the new size
 
+### Requirement: Segment shapes
+Each digit SHALL be drawn upright as seven separate segments, each a bar with pointed ends, separated from neighbouring segments by a visible gap, as on a real 7-segment display. Unlit segments SHALL be blank.
+
+#### Scenario: Digit 8
+- **WHEN** the display shows the digit `8`
+- **THEN** all seven segments are drawn as separate pointed bars with gaps at the corners where they meet
+
+#### Scenario: Unlit segments
+- **WHEN** the display shows the digit `1`
+- **THEN** only the two right-hand segments are drawn and the other five positions are blank
+
 ### Requirement: Starts paused
 The timer SHALL start paused, showing the total time, until the user presses space.
 

@@ -8,7 +8,7 @@ A speaker giving a talk needs to see, at a glance from a step or two away, how m
 
 - New Go command-line program `talk-timer`, a single file using `tcell` for terminal handling.
 - Takes two whole-minute integers, total time and warning time, either as flags (`-total-time 10 -warning-time 3`) or positionally (`10 3`).
-- Shows the remaining time full-screen as `MM:SS` in a 7-segment-style font built from block characters, scaled to the terminal and redrawn on resize.
+- Shows the remaining time full-screen as `MM:SS` in a faithful 7-segment font. Each segment is a separate bar with pointed ends, drawn with quarter-block characters. The display is scaled to the terminal and redrawn on resize.
 - Colour signals urgency: white normally, yellow at or below the warning time, red and flashing at `00:00`.
 - Starts paused at the total time. Space starts and pauses, `r` resets to the total time paused, and `q`, Esc and Ctrl-C quit.
 
